@@ -1,18 +1,39 @@
+# =====================================================
+# Terraform Infrastructure for ECS + ALB + ECR (Private)
+# =====================================================
+# This configuration sets up:
+# - A VPC with public & private subnets
+# - Application Load Balancer (public)
+# - ECS Fargate service (private)
+# - IAM roles for ECS execution
+# - VPC Endpoints for private ECR & S3 access (no NAT required)
+# =====================================================
+
+
 # -----------------------------
 # VPC & Networking
 # -----------------------------
+
+# Main Virtual Private Cloud (VPC)
+# Defines the main network range for all resources
 resource "aws_vpc" "main" {
   cidr_block = "10.0.0.0/16"
 }
 
-# Public subnets for ALB
+# -----------------------------
+# Public Subnets (for ALB)
+# -----------------------------
+
+# Public Subnet in Availability Zone A
+# ALB and other internet-facing components live here
 resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.1.0/24"
   availability_zone       = "eu-west-2a"
-  map_public_ip_on_launch = true
+  map_public_ip_on_launch = true # Ensures instances launched here get public IPs
 }
 
+# Public Subnet in Availability Zone B (High Availability)
 resource "aws_subnet" "public2" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.2.0/24"
@@ -20,7 +41,10 @@ resource "aws_subnet" "public2" {
   map_public_ip_on_launch = true
 }
 
-# Private subnets for ECS tasks
+# -----------------------------
+# Private Subnets (for ECS Tasks)
+# -----------------------------
+# ECS tasks will run in private subnets for better security
 resource "aws_subnet" "private" {
   vpc_id            = aws_vpc.main.id
   cidr_block        = "10.0.10.0/24"
@@ -33,19 +57,26 @@ resource "aws_subnet" "private2" {
   availability_zone = "eu-west-2b"
 }
 
+# -----------------------------
+# Internet Gateway & Routes
+# -----------------------------
+# Required for public subnets (for ALB internet access)
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.main.id
 }
 
+# Route Table for public subnets
+# Allows outbound internet access via Internet Gateway
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
   route {
-    cidr_block = "0.0.0.0/0"
+    cidr_block = "0.0.0.0/0" # Route all traffic to the internet
     gateway_id = aws_internet_gateway.igw.id
   }
 }
 
+# Associate public route table with both public subnets
 resource "aws_route_table_association" "public_assoc" {
   subnet_id      = aws_subnet.public.id
   route_table_id = aws_route_table.public.id
@@ -56,21 +87,26 @@ resource "aws_route_table_association" "public_assoc2" {
   route_table_id = aws_route_table.public.id
 }
 
+
 # -----------------------------
 # Security Groups
 # -----------------------------
-# ECS tasks: allow inbound only from ALB
+
+# ECS Task Security Group
+# Allows traffic ONLY from the ALB on the container port
 resource "aws_security_group" "ecs_sg" {
   name   = "${var.project_name}-sg"
   vpc_id = aws_vpc.main.id
 
+  # Inbound: allow traffic from ALB only
   ingress {
     from_port       = var.container_port
     to_port         = var.container_port
     protocol        = "tcp"
-    security_groups = [aws_security_group.alb_sg.id] # <-- only ALB
+    security_groups = [aws_security_group.alb_sg.id] # Restrict to ALB SG
   }
 
+  # Outbound: allow all traffic (for pulling images, contacting AWS APIs, etc.)
   egress {
     from_port   = 0
     to_port     = 0
@@ -79,7 +115,8 @@ resource "aws_security_group" "ecs_sg" {
   }
 }
 
-# ALB security group: allow HTTP from anywhere
+# ALB Security Group
+# Allows inbound HTTP (port 80) from the internet
 resource "aws_security_group" "alb_sg" {
   name        = "${var.project_name}-alb-sg"
   vpc_id      = aws_vpc.main.id
@@ -89,7 +126,7 @@ resource "aws_security_group" "alb_sg" {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["0.0.0.0/0"] # Allow from anywhere
   }
 
   egress {
@@ -100,26 +137,30 @@ resource "aws_security_group" "alb_sg" {
   }
 }
 
+
 # -----------------------------
-# ALB
+# Application Load Balancer (ALB)
 # -----------------------------
 resource "aws_lb" "mockoon_alb" {
   name               = "${var.project_name}-alb"
-  internal           = false
+  internal           = false # Internet-facing
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb_sg.id]
   subnets            = [aws_subnet.public.id, aws_subnet.public2.id]
 }
 
+# Target Group for ECS Tasks
+# ALB forwards requests to this target group (ECS tasks)
 resource "aws_lb_target_group" "mockoon_tg" {
   name        = "${var.project_name}-tg"
   port        = var.container_port
   protocol    = "HTTP"
-  target_type = "ip"
+  target_type = "ip" # Fargate uses IP target type
   vpc_id      = aws_vpc.main.id
 
+  # Health check to ensure tasks are healthy
   health_check {
-    path                = "/api/health" # <-- real endpoint
+    path                = "/api/health"
     interval            = 30
     healthy_threshold   = 2
     unhealthy_threshold = 2
@@ -128,6 +169,8 @@ resource "aws_lb_target_group" "mockoon_tg" {
   }
 }
 
+# ALB Listener (port 80)
+# Routes incoming HTTP requests to the target group
 resource "aws_lb_listener" "mockoon_listener" {
   load_balancer_arn = aws_lb.mockoon_alb.arn
   port              = 80
@@ -139,13 +182,18 @@ resource "aws_lb_listener" "mockoon_listener" {
   }
 }
 
+
 # -----------------------------
-# ECS Cluster, Task, and Service
+# ECS Cluster, Task Definition, and Service
 # -----------------------------
+
+# ECS Cluster to host our Fargate tasks
 resource "aws_ecs_cluster" "cluster" {
   name = "${var.project_name}-cluster"
 }
 
+# IAM Role for ECS Task Execution
+# Allows ECS to pull images from ECR and write logs to CloudWatch
 resource "aws_iam_role" "ecs_task_execution_role" {
   name = "mockoon-task-execution-role"
 
@@ -159,11 +207,14 @@ resource "aws_iam_role" "ecs_task_execution_role" {
   })
 }
 
+# Attach AWS-managed ECS execution policy to the role
 resource "aws_iam_role_policy_attachment" "ecs_task_execution_policy" {
   role       = aws_iam_role.ecs_task_execution_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
+# ECS Task Definition (Fargate)
+# Defines container image, resources, and networking
 resource "aws_ecs_task_definition" "mockoon_task" {
   family                   = "${var.project_name}-task"
   network_mode             = "awsvpc"
@@ -188,6 +239,8 @@ resource "aws_ecs_task_definition" "mockoon_task" {
   ])
 }
 
+# ECS Service (Fargate)
+# Runs and manages the ECS tasks, connected to the ALB
 resource "aws_ecs_service" "mockoon_service" {
   name            = "${var.project_name}-service"
   cluster         = aws_ecs_cluster.cluster.id
@@ -195,20 +248,58 @@ resource "aws_ecs_service" "mockoon_service" {
   desired_count   = var.desired_count
   launch_type     = "FARGATE"
 
+  # Network configuration - Private subnets only (no public IPs)
   network_configuration {
-    subnets          = [aws_subnet.private.id, aws_subnet.private2.id] # <-- private subnets
+    subnets          = [aws_subnet.private.id, aws_subnet.private2.id]
     security_groups  = [aws_security_group.ecs_sg.id]
     assign_public_ip = false
   }
 
+  # Attach service to ALB target group
   load_balancer {
     target_group_arn = aws_lb_target_group.mockoon_tg.arn
     container_name   = "${var.project_name}-container"
     container_port   = var.container_port
   }
 
+  # Ensure these dependencies exist before service creation
   depends_on = [
     aws_ecs_task_definition.mockoon_task,
     aws_lb_listener.mockoon_listener
   ]
+}
+
+
+# -----------------------------
+# VPC Endpoints (Private ECR & S3 Access)
+# -----------------------------
+# These endpoints allow ECS tasks in private subnets to:
+# - Pull container images from ECR (via API + Docker endpoints)
+# - Access image layers stored in S3
+# No need for NAT Gateway or internet access.
+
+# ECR API Endpoint (for auth & metadata)
+resource "aws_vpc_endpoint" "ecr_api" {
+  vpc_id             = aws_vpc.main.id
+  service_name       = "com.amazonaws.eu-west-2.ecr.api"
+  vpc_endpoint_type  = "Interface"
+  subnet_ids         = [aws_subnet.private.id, aws_subnet.private2.id]
+  security_group_ids = [aws_security_group.ecs_sg.id]
+}
+
+# ECR Docker Registry Endpoint (for image layer pulls)
+resource "aws_vpc_endpoint" "ecr_dkr" {
+  vpc_id             = aws_vpc.main.id
+  service_name       = "com.amazonaws.eu-west-2.ecr.dkr"
+  vpc_endpoint_type  = "Interface"
+  subnet_ids         = [aws_subnet.private.id, aws_subnet.private2.id]
+  security_group_ids = [aws_security_group.ecs_sg.id]
+}
+
+# S3 Gateway Endpoint (used by ECR under the hood)
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id            = aws_vpc.main.id
+  service_name      = "com.amazonaws.eu-west-2.s3"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = [aws_route_table.public.id]
 }
