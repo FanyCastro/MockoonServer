@@ -4,8 +4,8 @@
 **/.terraform/
 
 # Terraform state files
-*.tfstate
-*.tfstate.backup
+**/*.tfstate
+**/*.tfstate.backup
 
 # Crash logs
 crash.log
@@ -20,6 +20,7 @@ override.tf.json
 **/.terraformrc
 **/terraform.rc
 **/.terraform.lock.hcl
+**/.terraform.tfstate.lock.info
 
 # Sensitive variable files
 *.tfvars
