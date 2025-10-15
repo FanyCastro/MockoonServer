@@ -17,7 +17,9 @@
 # Main Virtual Private Cloud (VPC)
 # Defines the main network range for all resources
 resource "aws_vpc" "main" {
-  cidr_block = "10.0.0.0/16"
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_support   = true # required for endpoint private DNS resolution
+  enable_dns_hostnames = true # required for endpoint private DNS resolution
 }
 
 # -----------------------------
@@ -87,6 +89,24 @@ resource "aws_route_table_association" "public_assoc2" {
   route_table_id = aws_route_table.public.id
 }
 
+# -----------------------------
+# Private Route Table for private subnets
+# -----------------------------
+# private route table is where we'll attach the S3 gateway endpoint routes
+resource "aws_route_table" "private" {
+  vpc_id = aws_vpc.main.id
+}
+
+# Associate private route table with private subnets
+resource "aws_route_table_association" "private_assoc" {
+  subnet_id      = aws_subnet.private.id
+  route_table_id = aws_route_table.private.id
+}
+
+resource "aws_route_table_association" "private_assoc2" {
+  subnet_id      = aws_subnet.private2.id
+  route_table_id = aws_route_table.private.id
+}
 
 # -----------------------------
 # Security Groups
@@ -98,7 +118,7 @@ resource "aws_security_group" "ecs_sg" {
   name   = "${var.project_name}-sg"
   vpc_id = aws_vpc.main.id
 
-  # Inbound: allow traffic from ALB only
+  # Inbound: allow traffic from ALB only (ALB -> container_port)
   ingress {
     from_port       = var.container_port
     to_port         = var.container_port
@@ -106,7 +126,7 @@ resource "aws_security_group" "ecs_sg" {
     security_groups = [aws_security_group.alb_sg.id] # Restrict to ALB SG
   }
 
-  # Outbound: allow all traffic (for pulling images, contacting AWS APIs, etc.)
+  # Outbound: allow all (ECS tasks need to initiate connections, e.g., to endpoints)
   egress {
     from_port   = 0
     to_port     = 0
@@ -137,6 +157,30 @@ resource "aws_security_group" "alb_sg" {
   }
 }
 
+# Security group for Interface VPC Endpoints (ECR endpoints)
+# This SG allows inbound HTTPS (443) from ECS tasks, and outbound to anywhere.
+# We keep endpoint SG separate from ecs_sg to avoid odd circular rules and be explicit.
+resource "aws_security_group" "vpce_sg" {
+  name        = "${var.project_name}-vpce-sg"
+  description = "SG for interface VPC endpoints (allow ECS tasks to reach endpoints)"
+  vpc_id      = aws_vpc.main.id
+
+  # Allow ECS tasks (using ecs_sg) to connect to endpoints on 443
+  ingress {
+    from_port       = 443
+    to_port         = 443
+    protocol        = "tcp"
+    security_groups = [aws_security_group.ecs_sg.id]
+  }
+
+  # Allow endpoint ENIs to perform outbound as needed (e.g., to AWS service)
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
 
 # -----------------------------
 # Application Load Balancer (ALB)
@@ -181,7 +225,6 @@ resource "aws_lb_listener" "mockoon_listener" {
     target_group_arn = aws_lb_target_group.mockoon_tg.arn
   }
 }
-
 
 # -----------------------------
 # ECS Cluster, Task Definition, and Service
@@ -280,26 +323,29 @@ resource "aws_ecs_service" "mockoon_service" {
 
 # ECR API Endpoint (for auth & metadata)
 resource "aws_vpc_endpoint" "ecr_api" {
-  vpc_id             = aws_vpc.main.id
-  service_name       = "com.amazonaws.eu-west-2.ecr.api"
-  vpc_endpoint_type  = "Interface"
-  subnet_ids         = [aws_subnet.private.id, aws_subnet.private2.id]
-  security_group_ids = [aws_security_group.ecs_sg.id]
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.eu-west-2.ecr.api"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = [aws_subnet.private.id, aws_subnet.private2.id]
+  security_group_ids  = [aws_security_group.vpce_sg.id] # use endpoint SG
+  private_dns_enabled = true
 }
 
 # ECR Docker Registry Endpoint (for image layer pulls)
 resource "aws_vpc_endpoint" "ecr_dkr" {
-  vpc_id             = aws_vpc.main.id
-  service_name       = "com.amazonaws.eu-west-2.ecr.dkr"
-  vpc_endpoint_type  = "Interface"
-  subnet_ids         = [aws_subnet.private.id, aws_subnet.private2.id]
-  security_group_ids = [aws_security_group.ecs_sg.id]
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.eu-west-2.ecr.dkr"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = [aws_subnet.private.id, aws_subnet.private2.id]
+  security_group_ids  = [aws_security_group.vpce_sg.id] # use endpoint SG
+  private_dns_enabled = true
 }
 
 # S3 Gateway Endpoint (used by ECR under the hood)
+# Attach to both public and private route tables so private subnets can reach S3
 resource "aws_vpc_endpoint" "s3" {
   vpc_id            = aws_vpc.main.id
   service_name      = "com.amazonaws.eu-west-2.s3"
   vpc_endpoint_type = "Gateway"
-  route_table_ids   = [aws_route_table.public.id]
+  route_table_ids   = [aws_route_table.public.id, aws_route_table.private.id]
 }
