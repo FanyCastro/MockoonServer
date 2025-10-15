@@ -17,15 +17,16 @@ override.tf.json
 *_override.tf.json
 
 # CLI configuration files
-.terraformrc
-terraform.rc
+**/.terraformrc
+**/terraform.rc
+**/.terraform.lock.hcl
 
 # Sensitive variable files
 *.tfvars
 *.tfvars.json
 
 # Ignore plan files
-*.tfplan
+**/*.tfplan
 
 # Optional: Ignore IDE/project files
 .idea/
