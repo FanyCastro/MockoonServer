@@ -1,0 +1,46 @@
+@startuml
+title ECS Fargate + ALB + Private ECR (No NAT) - Runtime Request Flow
+
+actor User as U
+participant "Application Load Balancer\n(Public Subnets)" as ALB
+participant "Target Group\n(ECS IP Targets)" as TG
+participant "ECS Task (Fargate)\nPrivate Subnet :3000" as ECS
+participant "VPC Endpoints\n(ECR API / DKR / S3)" as VPCE
+participant "Amazon ECR\n(Private Repository)" as ECR
+participant "Amazon S3\n(ECR Layer Storage)" as S3
+participant "CloudWatch Logs" as CW
+
+== 1. User Request ==
+U -> ALB: HTTP Request (port 80)\nhttp://mockoon-alb-xxxx.amazonaws.com/api/health
+ALB -> TG: Forward request (HTTP)
+TG -> ECS: Route to task IP:3000
+
+== 2. ECS Task Processing ==
+ECS -> ECS: Handle /api/health\n(Mockoon container responds)
+ECS --> ALB: HTTP 200 OK Response
+ALB --> U: HTTP Response to client
+
+== 3. ECR Image Pull (startup phase) ==
+note over ECS,VPCE
+ECS Fargate task pulls container image
+from Private ECR using VPC Endpoints
+(no public internet)
+end note
+
+ECS -> VPCE: Auth Request (GetAuthorizationToken)\nvia ecr.api endpoint
+VPCE -> ECR: Authenticate ECS Task
+ECR --> VPCE: Return token
+VPCE --> ECS: Auth token (HTTPS)
+
+ECS -> VPCE: Pull image layers\nvia ecr.dkr endpoint
+VPCE -> ECR: Request image metadata
+ECR -> S3: Get layer data
+S3 --> ECR: Return image layers
+ECR --> VPCE: Send image layers
+VPCE --> ECS: Deliver container image
+
+== 4. Logging ==
+ECS -> CW: Send application logs
+note right: CloudWatch receives container logs\nfor monitoring & debugging.
+
+@enduml
