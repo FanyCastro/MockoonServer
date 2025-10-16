@@ -6,6 +6,7 @@ This Terraform project deploys a **Mockoon containerized API** on **AWS ECS Farg
 
 ## Table of Contents
 
+- [Introduction](#introduction)  
 - [Architecture Overview](#architecture-overview)  
 - [Requirements](#requirements)  
 - [Terraform Components](#terraform-components)  
