@@ -8,14 +8,20 @@ This Terraform project deploys a **Mockoon containerized API** on **AWS ECS Farg
 
 - [Introduction](#introduction)  
 - [Architecture Overview](#architecture-overview)  
-- [Requirements](#requirements)  
-- [Terraform Components](#terraform-components)  
-- [Health Checks](#health-checks)  
-- [Security Considerations](#security-considerations)  
+   - [🧱 1. Core Network Foundation (VPC and Subnets)](#-1-core-network-foundation-vpc-and-subnets)  
+   - [🌐 2. Routing and Gateways](#-2-routing-and-gateways)  
+   - [🔒 3. Security Groups (Firewalls)](#-3-security-groups-firewalls)  
+   - [⚖️ 4. Application Load Balancer (ALB)](#️-4-application-load-balancer-alb)  
+   - [🧩 5. ECS Fargate Setup](#-5-ecs-fargate-setup)
+   - [🔌 6. VPC Endpoints (Private AWS Access)](#-6-vpc-endpoints-private-aws-access)
+   - [🧠 7. Deployment Order (Terraform Flow)](#-7-deployment-order-terraform-flow)
+   - [⚙️ 8. Runtime Request Flow (Step-by-Step)](#️-8-runtime-request-flow-step-by-step)
+   - [🛡️ 9. Key Security & Design Advantages](#️-9-key-security--design-advantages)
+   - [🧭 10. Summary Visualization (Simplified Flow)](#-10-summary-visualization-simplified-flow)
 
 ---
 
-## Architecture Overview
+## Introduction
 
 This is a private **ECS Fargate + ALB + ECR** setup that allows you to:
 
@@ -25,6 +31,8 @@ This is a private **ECS Fargate + ALB + ECR** setup that allows you to:
 - Avoid NAT gateways using VPC Endpoints for ECR and S3 access.
 
 ---
+
+## Architecture Overview
 
 ### 🧱 1. Core Network Foundation (VPC and Subnets)
 
@@ -46,7 +54,6 @@ This is a private **ECS Fargate + ALB + ECR** setup that allows you to:
 | `private`  | 10.0.10.0/24 | eu-west-2a | ECS tasks      | ❌ no       |
 | `private2` | 10.0.11.0/24 | eu-west-2b | ECS tasks (HA) | ❌ no       |
 
----
 
 ### 🌐 2. Routing and Gateways
 
@@ -60,7 +67,6 @@ This is a private **ECS Fargate + ALB + ECR** setup that allows you to:
 - **Public route table**: Routes all outbound traffic (0.0.0.0/0) to the Internet Gateway.
 - **Private route table**: No default internet route — stays internal. It’s connected later to VPC endpoints for private AWS API access.
 
----
 
 ### 🔒 3. Security Groups (Firewalls)
 
@@ -79,7 +85,6 @@ This is a private **ECS Fargate + ALB + ECR** setup that allows you to:
 - Allows inbound 443 from ECS SG (so ECS can talk to endpoints).
 - Allows outbound anywhere — needed for AWS-managed communication.
 
----
 
 ### ⚖️ 4. Application Load Balancer (ALB)
 
@@ -105,7 +110,6 @@ This is a private **ECS Fargate + ALB + ECR** setup that allows you to:
 - ALB receives traffic on port 80.
 - ALB routes it to the ECS service (target group) on port 3000.
 
----
 
 ### 🧩 5. ECS Fargate Setup
 
@@ -135,7 +139,6 @@ This is a private **ECS Fargate + ALB + ECR** setup that allows you to:
 - Runs tasks in private subnets with no public IPs.
 - Uses ECS SG to control inbound connections (only from ALB).
 
---- 
 
 ### 🔌 6. VPC Endpoints (Private AWS Access)
 
@@ -151,7 +154,6 @@ So we add VPC Endpoints:
 
 These allow ECS tasks in private subnets to reach ECR and S3 securely inside the AWS network, without public Internet.
 
----
 
 ### 🧠 7. Deployment Order (Terraform Flow)
 
@@ -162,8 +164,6 @@ These allow ECS tasks in private subnets to reach ECR and S3 securely inside the
 5. ALB + Target Group + Listener created
 6. ECS Cluster, IAM Role, Task Definition created
 7. ECS Service started (tasks run inside private subnets)
-
----
 
 ### ⚙️ 8. Runtime Request Flow (Step-by-Step)
 
@@ -179,7 +179,6 @@ Here’s how traffic flows when everything is running:
 7. 🌐 ALB returns the response to the user over the Internet.
 8. 🧾 Logs from the container are automatically pushed to CloudWatch Logs using the ECS execution role.
 
----
 
 ### 🛡️ 9. Key Security & Design Advantages
 
@@ -192,7 +191,6 @@ Here’s how traffic flows when everything is running:
 | **IAM Roles**          | Fine-grained permissions for ECS execution.                  |
 | **Health Checks**      | Keeps only healthy containers in the load balancer rotation. |
 
----
 
 ### 🧭 10. Summary Visualization (Simplified Flow)
 
