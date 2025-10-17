@@ -115,8 +115,8 @@ resource "aws_route_table_association" "private_assoc2" {
 # ECS Task Security Group
 # Allows traffic ONLY from the ALB on the container port
 resource "aws_security_group" "ecs_sg" {
-  name   = "${var.project_name}-sg"
-  vpc_id = aws_vpc.main.id
+  name        = "${var.project_name}-sg"
+  vpc_id      = aws_vpc.main.id
   description = "Allow inbound traffic from ALB only"
 
   # Inbound: allow traffic from ALB only (ALB -> container_port)
@@ -125,7 +125,7 @@ resource "aws_security_group" "ecs_sg" {
     to_port         = var.container_port
     protocol        = "tcp"
     security_groups = [aws_security_group.alb_sg.id] # Restrict to ALB SG
-    description = "Allow traffic from ALB"
+    description     = "Allow traffic from ALB"
   }
 
   # Outbound: allow all (ECS tasks need to initiate connections, e.g., to endpoints)
@@ -174,7 +174,7 @@ resource "aws_security_group" "vpce_sg" {
     to_port         = 443
     protocol        = "tcp"
     security_groups = [aws_security_group.ecs_sg.id]
-    description = "Allow ECS tasks to connect to VPC endpoints"
+    description     = "Allow ECS tasks to connect to VPC endpoints"
   }
 
   # Allow endpoint ENIs to perform outbound as needed (e.g., to AWS service)
@@ -190,11 +190,12 @@ resource "aws_security_group" "vpce_sg" {
 # Application Load Balancer (ALB)
 # -----------------------------
 resource "aws_lb" "mockoon_alb" {
-  name               = "${var.project_name}-alb"
-  internal           = false # Internet-facing
-  load_balancer_type = "application"
-  security_groups    = [aws_security_group.alb_sg.id]
-  subnets            = [aws_subnet.public.id, aws_subnet.public2.id]
+  name                       = "${var.project_name}-alb"
+  internal                   = false # Internet-facing
+  load_balancer_type         = "application"
+  security_groups            = [aws_security_group.alb_sg.id]
+  subnets                    = [aws_subnet.public.id, aws_subnet.public2.id]
+  drop_invalid_header_fields = true
 }
 
 # Target Group for ECS Tasks
@@ -239,7 +240,7 @@ resource "aws_ecs_cluster" "cluster" {
   name = "${var.project_name}-cluster"
 
   setting {
-    name = "containerInsights"
+    name  = "containerInsights"
     value = "enabled"
   }
 }
@@ -360,7 +361,7 @@ resource "aws_vpc_endpoint" "s3" {
 }
 
 resource "aws_ecr_repository" "mockoon" {
-  name = "${var.project_name}-repo"
+  name                 = "${var.project_name}-repo"
   image_tag_mutability = "INMUTABLE"
 
   encryption_configuration {
