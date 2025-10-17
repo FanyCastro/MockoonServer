@@ -27,7 +27,3 @@ variable "desired_count" {
   description = "Number of Fargate tasks"
   default     = 1
 }
-
-resource "aws_ecr_repository" "mockoon" {
-  name = "${var.project_name}-repo"
-}

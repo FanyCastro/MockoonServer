@@ -117,6 +117,7 @@ resource "aws_route_table_association" "private_assoc2" {
 resource "aws_security_group" "ecs_sg" {
   name   = "${var.project_name}-sg"
   vpc_id = aws_vpc.main.id
+  description = "Allow inbound traffic from ALB only"
 
   # Inbound: allow traffic from ALB only (ALB -> container_port)
   ingress {
@@ -124,15 +125,16 @@ resource "aws_security_group" "ecs_sg" {
     to_port         = var.container_port
     protocol        = "tcp"
     security_groups = [aws_security_group.alb_sg.id] # Restrict to ALB SG
+    description = "Allow traffic from ALB"
   }
 
   # Outbound: allow all (ECS tasks need to initiate connections, e.g., to endpoints)
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  # egress {
+  #   from_port   = 0
+  #   to_port     = 0
+  #   protocol    = "-1"
+  #   cidr_blocks = ["0.0.0.0/0"]
+  # }
 }
 
 # ALB Security Group
@@ -147,14 +149,15 @@ resource "aws_security_group" "alb_sg" {
     to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"] # Allow from anywhere
+    description = "Allow inbound HTTP from anywhere"
   }
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  # egress {
+  #   from_port   = 0
+  #   to_port     = 0
+  #   protocol    = "-1"
+  #   cidr_blocks = ["0.0.0.0/0"]
+  # }
 }
 
 # Security group for Interface VPC Endpoints (ECR endpoints)
@@ -171,15 +174,16 @@ resource "aws_security_group" "vpce_sg" {
     to_port         = 443
     protocol        = "tcp"
     security_groups = [aws_security_group.ecs_sg.id]
+    description = "Allow ECS tasks to connect to VPC endpoints"
   }
 
   # Allow endpoint ENIs to perform outbound as needed (e.g., to AWS service)
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  # egress {
+  #   from_port   = 0
+  #   to_port     = 0
+  #   protocol    = "-1"
+  #   cidr_blocks = ["0.0.0.0/0"]
+  # }
 }
 
 # -----------------------------
@@ -233,6 +237,11 @@ resource "aws_lb_listener" "mockoon_listener" {
 # ECS Cluster to host our Fargate tasks
 resource "aws_ecs_cluster" "cluster" {
   name = "${var.project_name}-cluster"
+
+  setting {
+    name = "containerInsights"
+    value = "enabled"
+  }
 }
 
 # IAM Role for ECS Task Execution
@@ -348,4 +357,17 @@ resource "aws_vpc_endpoint" "s3" {
   service_name      = "com.amazonaws.eu-west-2.s3"
   vpc_endpoint_type = "Gateway"
   route_table_ids   = [aws_route_table.public.id, aws_route_table.private.id]
+}
+
+resource "aws_ecr_repository" "mockoon" {
+  name = "${var.project_name}-repo"
+  image_tag_mutability = "INMUTABLE"
+
+  encryption_configuration {
+    encryption_type = "KMS"
+  }
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
 }
