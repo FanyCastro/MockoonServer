@@ -362,7 +362,7 @@ resource "aws_vpc_endpoint" "s3" {
 
 resource "aws_ecr_repository" "mockoon" {
   name                 = "${var.project_name}-repo"
-  image_tag_mutability = "INMUTABLE"
+  image_tag_mutability = "IMMUTABLE"
 
   encryption_configuration {
     encryption_type = "KMS"
