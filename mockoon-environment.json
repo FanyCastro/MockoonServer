@@ -265,42 +265,6 @@
             "responseMode": null,
             "streamingMode": null,
             "streamingInterval": 0
-        },
-        {
-            "method": "get",
-            "endpoint": "forward-and-record",
-            "documentation": "Can Mockoon forward or record entering requests?",
-            "responses": [
-                {
-                    "uuid": "cae9d195-56f3-4b5e-a7f2-8275a74770c2",
-                    "body": "Mockoon can also act as a proxy and forward all entering requests that are not caught by declared routes. \nYou can activate this option in the environment settings (\"Settings\" tab at the top). \nTo learn more: https://mockoon.com/docs/latest/server-configuration/proxy-mode/\n\nAll entering requests, and responses from the proxied server will be recorded and can be automatically mocked (\"Logs\" tab at the top).\nTo learn more: https://mockoon.com/docs/latest/logging-and-recording/requests-logging/",
-                    "latency": 0,
-                    "statusCode": 200,
-                    "label": "",
-                    "headers": [
-                        {
-                            "key": "Content-Type",
-                            "value": "text/plain"
-                        }
-                    ],
-                    "bodyType": "INLINE",
-                    "filePath": "",
-                    "databucketID": "",
-                    "sendFileAsBody": false,
-                    "rules": [],
-                    "rulesOperator": "OR",
-                    "disableTemplating": false,
-                    "fallbackTo404": false,
-                    "default": false,
-                    "crudKey": "id",
-                    "callbacks": []
-                }
-            ],
-            "uuid": "c571b541-0118-4ec1-9c69-c57f7f8bd5c8",
-            "type": "http",
-            "responseMode": null,
-            "streamingMode": null,
-            "streamingInterval": 0
         }
     ],
     "rootChildren": [
@@ -327,10 +291,6 @@
         {
             "type": "route",
             "uuid": "4409d1d4-f3ef-4e5a-8325-2db51ce9e63d"
-        },
-        {
-            "type": "route",
-            "uuid": "c571b541-0118-4ec1-9c69-c57f7f8bd5c8"
         }
     ],
     "proxyMode": false,

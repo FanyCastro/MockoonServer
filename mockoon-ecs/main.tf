@@ -129,12 +129,12 @@ resource "aws_security_group" "ecs_sg" {
   }
 
   # Outbound: allow all (ECS tasks need to initiate connections, e.g., to endpoints)
-  # egress {
-  #   from_port   = 0
-  #   to_port     = 0
-  #   protocol    = "-1"
-  #   cidr_blocks = ["0.0.0.0/0"]
-  # }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }
 
 # ALB Security Group
@@ -152,12 +152,12 @@ resource "aws_security_group" "alb_sg" {
     description = "Allow inbound HTTP from anywhere"
   }
 
-  # egress {
-  #   from_port   = 0
-  #   to_port     = 0
-  #   protocol    = "-1"
-  #   cidr_blocks = ["0.0.0.0/0"]
-  # }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }
 
 # Security group for Interface VPC Endpoints (ECR endpoints)
@@ -178,12 +178,12 @@ resource "aws_security_group" "vpce_sg" {
   }
 
   # Allow endpoint ENIs to perform outbound as needed (e.g., to AWS service)
-  # egress {
-  #   from_port   = 0
-  #   to_port     = 0
-  #   protocol    = "-1"
-  #   cidr_blocks = ["0.0.0.0/0"]
-  # }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }
 
 # -----------------------------
@@ -279,7 +279,7 @@ resource "aws_ecs_task_definition" "mockoon_task" {
   container_definitions = jsonencode([
     {
       name      = "${var.project_name}-container"
-      image     = aws_ecr_repository.mockoon.repository_url
+      image     = data.aws_ecr_repository.mockoon.repository_url
       essential = true
       portMappings = [
         {
@@ -360,15 +360,19 @@ resource "aws_vpc_endpoint" "s3" {
   route_table_ids   = [aws_route_table.public.id, aws_route_table.private.id]
 }
 
-resource "aws_ecr_repository" "mockoon" {
-  name                 = "${var.project_name}-repo"
-  image_tag_mutability = "IMMUTABLE"
-
-  encryption_configuration {
-    encryption_type = "KMS"
-  }
-
-  image_scanning_configuration {
-    scan_on_push = true
-  }
+data "aws_ecr_repository" "mockoon" {
+  name = "${var.project_name}-repo"
 }
+
+# resource "aws_ecr_repository" "mockoon" {
+#   name                 = "${var.project_name}-repo"
+#   image_tag_mutability = "IMMUTABLE"
+
+#   encryption_configuration {
+#     encryption_type = "KMS"
+#   }
+
+#   image_scanning_configuration {
+#     scan_on_push = true
+#   }
+# }

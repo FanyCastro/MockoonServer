@@ -1,5 +1,5 @@
-output "ecr_repository_url" {
-  value = aws_ecr_repository.mockoon.repository_url
+output "repository_url" {
+  value = data.aws_ecr_repository.mockoon.repository_url
 }
 
 output "ecs_service_name" {
