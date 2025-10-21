@@ -41,17 +41,23 @@ jobs:
           docker build -t $ECR_REGISTRY/mockoon-repo:$IMAGE_TAG .
           docker push $ECR_REGISTRY/mockoon-repo:$IMAGE_TAG
 
-      # 5️⃣ Terraform Init
+      # 5️⃣ Setup Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v1
+        with:
+          terraform_version: 1.0.7
+
+      # 6️⃣ Terraform Init
       - name: Terraform Init
         working-directory: ./mockoon-ecs
         run: terraform init
 
-      # 6️⃣ Terraform Plan
+      # 7️⃣ Terraform Plan
       - name: Terraform Plan
         working-directory: ./mockoon-ecs
         run: terraform plan -out=tfplan
 
-      # 7️⃣ Terraform Apply
+      # 8️⃣ Terraform Apply
       - name: Terraform Apply
         working-directory: ./mockoon-ecs
         run: terraform apply -auto-approve tfplan
