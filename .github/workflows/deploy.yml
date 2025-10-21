@@ -1,0 +1,57 @@
+name: Deploy Mockoon to ECS
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: eu-west-2
+  ECR_REPOSITORY: 634692860368.dkr.ecr.eu-west-2.amazonaws.com/mockoon-repo
+  IMAGE_TAG: latest
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2️⃣ Configure AWS credentials
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # 3️⃣ Login to Amazon ECR
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # 4️⃣ Build, tag, and push Docker image
+      - name: Build and push Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+        run: |
+          docker build -t $ECR_REGISTRY/mockoon-repo:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/mockoon-repo:$IMAGE_TAG
+
+      # 5️⃣ Terraform Init
+      - name: Terraform Init
+        working-directory: ./mockoon-ecs
+        run: terraform init
+
+      # 6️⃣ Terraform Plan
+      - name: Terraform Plan
+        working-directory: ./mockoon-ecs
+        run: terraform plan -out=tfplan
+
+      # 7️⃣ Terraform Apply
+      - name: Terraform Apply
+        working-directory: ./mockoon-ecs
+        run: terraform apply -auto-approve tfplan
