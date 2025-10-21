@@ -1,5 +1,12 @@
 **/.DS_Store
 
+# Dependencies
+/node_modules
+
+# Build output
+/dist
+/build
+
 # Local Terraform directories
 **/.terraform/
 

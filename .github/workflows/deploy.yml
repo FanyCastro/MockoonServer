@@ -49,15 +49,15 @@ jobs:
 
       # 6️⃣ Terraform Init
       - name: Terraform Init
-        working-directory: ./mockoon-ecs
+        working-directory: ./aws-infrastructure
         run: terraform init
 
       # 7️⃣ Terraform Plan
       - name: Terraform Plan
-        working-directory: ./mockoon-ecs
+        working-directory: ./aws-infrastructure
         run: terraform plan -out=tfplan
 
       # 8️⃣ Terraform Apply
       - name: Terraform Apply
-        working-directory: ./mockoon-ecs
+        working-directory: ./aws-infrastructure
         run: terraform apply -auto-approve tfplan
