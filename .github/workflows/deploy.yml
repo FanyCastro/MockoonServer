@@ -8,7 +8,7 @@ on:
 env:
   AWS_REGION: eu-west-2
   ECR_REPOSITORY: 634692860368.dkr.ecr.eu-west-2.amazonaws.com/mockoon-repo
-  IMAGE_TAG: latest
+  IMAGE_TAG: express-api-repo
 
 jobs:
   build-and-deploy:
