@@ -34,6 +34,7 @@ jobs:
 
       # 4️⃣ Build, tag, and push Docker image
       - name: Build and push Docker image
+        working-directory: ./express-api
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ env.IMAGE_TAG }}
